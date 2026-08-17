@@ -1,0 +1,1532 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#060e1e">
+<meta name="description" content="竹知了（竹蝉）——中国传统民间玩具的 Web 互动游戏：按住屏幕画圈甩起来，重力、弹性绳、空气阻力与 1/240s 定步长物理积分，还原真实手感与“哇——哇——”发声。">
+<title>竹知了 · 云甩竹蝉</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎋</text></svg>">
+<style>
+:root{
+  --ink:#eaf2ff; --ink-dim:rgba(234,242,255,.58); --ink-faint:rgba(234,242,255,.34);
+  --accent:#ffd166; --accent-soft:rgba(255,209,102,.45);
+  --panel:rgba(8,18,36,.64); --panel-solid:rgba(10,20,38,.92);
+  --panel-line:rgba(255,255,255,.13);
+  --btn:rgba(255,255,255,.07); --btn-hover:rgba(255,255,255,.14);
+  --btn-active:rgba(255,209,102,.22); --btn-active-line:rgba(255,209,102,.55);
+  --chip:rgba(255,255,255,.06);
+  --rope:#c9a36b;
+  --shadow:rgba(0,0,0,.5);
+}
+body[data-theme="day"]{
+  --ink:#12303f; --ink-dim:rgba(18,48,63,.62); --ink-faint:rgba(18,48,63,.36);
+  --accent:#e07b1f; --accent-soft:rgba(224,123,31,.4);
+  --panel:rgba(255,255,255,.6); --panel-solid:rgba(250,253,255,.94);
+  --panel-line:rgba(20,60,80,.15);
+  --btn:rgba(255,255,255,.55); --btn-hover:rgba(255,255,255,.85);
+  --btn-active:rgba(255,160,60,.3); --btn-active-line:rgba(224,123,31,.6);
+  --chip:rgba(255,255,255,.5);
+  --rope:#7a5c36;
+  --shadow:rgba(40,60,30,.25);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
+  background:#060e1e;color:var(--ink);
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;
+  touch-action:none;
+}
+#scene{position:fixed;inset:0;display:block;touch-action:none;cursor:grab}
+#scene.dragging{cursor:grabbing}
+#ui{position:fixed;inset:0;pointer-events:none;z-index:10}
+#ui *{pointer-events:none}
+
+/* ---------- 顶栏 ---------- */
+#topbar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;
+  gap:8px;flex-wrap:wrap;padding:calc(10px + env(safe-area-inset-top)) 12px 0}
+.brand h1{font-size:22px;letter-spacing:6px;line-height:1.1;font-weight:800;
+  text-shadow:0 0 16px var(--accent-soft),0 2px 6px var(--shadow)}
+.brand .sub{display:block;font-size:10px;letter-spacing:1px;opacity:.72;margin-top:2px}
+.stats{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.chip{background:var(--chip);border:1px solid var(--panel-line);backdrop-filter:blur(6px);
+  border-radius:12px;padding:3px 10px;text-align:center;min-width:60px}
+.chip b{display:block;font-size:14px;font-variant-numeric:tabular-nums;font-weight:700}
+.chip span{font-size:9px;opacity:.66;letter-spacing:1px}
+
+/* ---------- 诗 ---------- */
+#poem{position:absolute;left:10px;top:50%;transform:translateY(-50%);
+  writing-mode:vertical-rl;text-orientation:upright;
+  font-family:"KaiTi","STKaiti","楷体","Noto Serif SC",serif;font-size:17px;letter-spacing:7px;line-height:1.9;
+  color:var(--ink-dim);text-shadow:0 0 14px rgba(0,0,0,.5)}
+#poem div{transition:opacity 2s}
+
+/* ---------- 功德 ---------- */
+#gongdeBox{position:absolute;top:86px;left:50%;transform:translateX(-50%);text-align:center}
+.gd-label{font-size:11px;letter-spacing:8px;opacity:.75}
+#gd-num{font-size:46px;font-weight:800;line-height:1.15;font-variant-numeric:tabular-nums;
+  color:var(--accent);text-shadow:0 0 20px var(--accent-soft);transition:transform .16s ease-out}
+#gd-num.bump{transform:scale(1.16)}
+.gd-sub{font-size:11px;opacity:.75;font-variant-numeric:tabular-nums}
+.gd-sub b{color:var(--accent)}
+
+/* ---------- 模式提示 ---------- */
+#modeChip{position:absolute;top:calc(58px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+  background:var(--panel);border:1px solid var(--panel-line);backdrop-filter:blur(8px);
+  border-radius:999px;padding:5px 14px;font-size:12px;white-space:nowrap}
+#modeChip.hidden{display:none}
+
+/* ---------- 提示条 ---------- */
+#hint{position:absolute;bottom:calc(96px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);
+  font-size:12px;white-space:nowrap;opacity:0;transition:opacity 1.2s;
+  background:var(--panel);border:1px solid var(--panel-line);border-radius:999px;padding:7px 16px;backdrop-filter:blur(6px)}
+#hint.show{opacity:.92}
+
+/* ---------- 成就 toast ---------- */
+#toasts{position:absolute;top:calc(66px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+  display:flex;flex-direction:column;gap:6px;align-items:center;width:max-content;max-width:92vw}
+.toast{background:var(--panel-solid);border:1px solid var(--btn-active-line);border-radius:14px;
+  padding:8px 16px;font-size:13px;box-shadow:0 4px 18px var(--shadow);
+  animation:toastIn .3s ease-out;backdrop-filter:blur(8px)}
+.toast.bye{opacity:0;transition:opacity .5s}
+@keyframes toastIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+
+/* ---------- 底部按钮 ---------- */
+#dock{position:absolute;bottom:calc(12px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);
+  display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:97vw;
+  padding:8px 10px;background:var(--panel);border:1px solid var(--panel-line);
+  border-radius:20px;backdrop-filter:blur(10px)}
+#dock button{pointer-events:auto;border:1px solid var(--panel-line);background:var(--btn);color:var(--ink);
+  border-radius:999px;padding:8px 13px;font-size:12.5px;cursor:pointer;transition:background .15s,transform .1s;
+  display:flex;align-items:center;gap:4px;line-height:1}
+#dock button:hover{background:var(--btn-hover)}
+#dock button:active{transform:scale(.93)}
+#dock button.active{background:var(--btn-active);border-color:var(--btn-active-line)}
+
+/* ---------- 面板 ---------- */
+#panel{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+  background:rgba(4,10,20,.55);backdrop-filter:blur(4px);z-index:20;pointer-events:auto}
+#panel.open{display:flex}
+#panel *{pointer-events:auto}
+.panel-card{width:min(500px,94vw);max-height:84vh;overflow-y:auto;background:var(--panel-solid);
+  border:1px solid var(--panel-line);border-radius:22px;padding:18px 18px 22px;
+  box-shadow:0 18px 60px var(--shadow)}
+.panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.panel-head h2{font-size:19px;letter-spacing:3px}
+.close{width:32px;height:32px;border-radius:50%;border:1px solid var(--panel-line);background:var(--btn);
+  color:var(--ink);font-size:14px;cursor:pointer}
+.close:hover{background:var(--btn-hover)}
+.tabs{display:flex;gap:6px;margin-bottom:14px}
+.tab{flex:1;padding:8px 0;border-radius:12px;border:1px solid var(--panel-line);background:var(--btn);
+  color:var(--ink);font-size:13px;cursor:pointer}
+.tab.active{background:var(--btn-active);border-color:var(--btn-active-line)}
+.tabpane.hidden{display:none}
+.share-row{display:flex;gap:8px;margin-bottom:14px}
+.share-row input{flex:1;min-width:0;padding:8px 12px;border-radius:12px;border:1px solid var(--panel-line);
+  background:var(--btn);color:var(--ink);font-size:13px;outline:none}
+.share-row input:focus{border-color:var(--btn-active-line)}
+.share-row button{padding:8px 14px;border-radius:12px;border:1px solid var(--btn-active-line);
+  background:var(--btn-active);color:var(--ink);font-size:13px;cursor:pointer;white-space:nowrap}
+h3{font-size:13px;letter-spacing:2px;margin:14px 0 8px;opacity:.85}
+h3 em{font-style:normal;font-size:10px;opacity:.5;letter-spacing:0}
+.rank-list{list-style:none;counter-reset:rk}
+.rank-list li{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:10px;font-size:13px;
+  font-variant-numeric:tabular-nums;counter-increment:rk}
+.rank-list li:nth-child(odd){background:var(--btn)}
+.rank-list li .rk{counter-reset:none}
+.rank-list li::before{content:counter(rk);width:22px;height:22px;border-radius:50%;background:var(--btn);
+  border:1px solid var(--panel-line);display:flex;align-items:center;justify-content:center;font-size:11px;flex:none}
+.rank-list li:nth-child(-n+3)::before{background:var(--btn-active);border-color:var(--btn-active-line);color:var(--accent)}
+.rank-list li .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rank-list li .sc{font-weight:700;color:var(--accent)}
+.rank-list li.me{outline:1px solid var(--btn-active-line)}
+.ach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.ach-item{border:1px solid var(--panel-line);background:var(--btn);border-radius:14px;padding:10px 8px;
+  text-align:center;opacity:1;transition:opacity .3s}
+.ach-item .ic{font-size:26px;display:block;margin-bottom:4px}
+.ach-item .nm{font-size:12.5px;font-weight:700;display:block}
+.ach-item .ds{font-size:10px;opacity:.65;display:block;margin-top:2px;line-height:1.4}
+.ach-item.locked{opacity:.34;filter:grayscale(1)}
+.about p{font-size:12.5px;line-height:1.8;margin-bottom:10px;opacity:.92}
+.about .poem-line{font-family:"KaiTi","STKaiti","楷体",serif;font-size:15px;letter-spacing:3px;text-align:center;opacity:.9}
+.about .feat{font-weight:700;margin:12px 0 4px;font-size:13px}
+.about ul{padding-left:18px;font-size:12.5px;line-height:1.9;opacity:.9}
+.about code{background:var(--btn);border:1px solid var(--panel-line);border-radius:6px;padding:1px 6px;font-size:11.5px}
+.about .copyright{color:var(--accent);font-size:11.5px}
+
+.watermark{position:absolute;right:10px;bottom:calc(6px + env(safe-area-inset-bottom));
+  font-size:9px;opacity:.38;letter-spacing:1px}
+
+@media (max-width:640px){
+  #poem{display:none}
+  #gongdeBox{top:150px}
+  #gd-num{font-size:40px}
+  #modeChip{top:118px}
+  #hint{bottom:calc(104px + env(safe-area-inset-bottom));font-size:11px}
+  .brand h1{font-size:18px;letter-spacing:4px}
+}
+</style>
+</head>
+<body data-theme="night">
+<canvas id="scene"></canvas>
+<div id="ui">
+  <header id="topbar">
+    <div class="brand"><h1>竹知了</h1><span class="sub">云甩竹蝉 · 一千万以内最好的玩具</span></div>
+    <div class="stats">
+      <div class="chip"><b id="st-online">0</b><span>当前在线</span></div>
+      <div class="chip"><b id="st-visitors">0</b><span>累计访客</span></div>
+      <div class="chip"><b id="st-visits">0</b><span>总访问量</span></div>
+      <div class="chip"><b id="st-wa">0</b><span>全球哇声</span></div>
+    </div>
+  </header>
+
+  <div id="poem"><div>竹鼓为鼓</div><div>松音为弦</div><div>蝉颤生振</div><div>振腔共鸣</div></div>
+
+  <div id="gongdeBox">
+    <div class="gd-label">功 德</div>
+    <div id="gd-num">0</div>
+    <div class="gd-sub">本局哇声 <b id="wa-session">0</b> · 本局 <b id="gd-session">0</b> 圈</div>
+  </div>
+
+  <div id="modeChip" class="hidden"></div>
+  <div id="toasts"></div>
+  <div id="hint">按住屏幕画圈甩起来！松手后竹知了会自然减速垂落 🎋</div>
+
+  <div id="dock">
+    <button id="b-auto" data-act="auto">⏺ 自动甩</button>
+    <button id="b-style" data-act="style">✏️ 手绘小蝉</button>
+    <button id="b-phone" data-act="phone">📱 甩手机</button>
+    <button id="b-rank" data-act="rank">🏆 排行</button>
+    <button id="b-ach" data-act="ach">🎖 成就</button>
+    <button id="b-theme" data-act="theme">☀️ 白天</button>
+    <button id="b-mute" data-act="mute">🔊 声音</button>
+  </div>
+
+  <div id="panel">
+    <div class="panel-card">
+      <div class="panel-head"><h2 id="panel-title">排行榜</h2><button class="close" data-act="close">✕</button></div>
+      <div class="tabs">
+        <button class="tab active" data-tab="rank">🏆 排行</button>
+        <button class="tab" data-tab="ach">🎖 成就</button>
+        <button class="tab" data-tab="about">📜 关于</button>
+      </div>
+      <div id="tab-rank" class="tabpane">
+        <div class="share-row">
+          <input id="nick" maxlength="12" placeholder="输入昵称，默认“蝉友”">
+          <button id="btn-share">📣 分享战绩</button>
+        </div>
+        <h3>🌍 全球功德榜 <em>（演示数据）</em></h3>
+        <ol id="global-rank" class="rank-list"></ol>
+        <h3>🏠 本地功德榜</h3>
+        <ol id="local-rank" class="rank-list"></ol>
+      </div>
+      <div id="tab-ach" class="tabpane hidden">
+        <div id="ach-grid" class="ach-grid"></div>
+      </div>
+      <div id="tab-about" class="tabpane hidden">
+        <div class="about">
+          <p class="poem-line">竹鼓为鼓，松音为弦，蝉颤生振，振腔共鸣。</p>
+          <p>竹知了（竹蝉）是中国传统民间玩具：竹筒一端蒙竹膜，膜心系一根涂了松香的线，甩动时「黏—滑」交替摩擦产生脉冲，经竹膜与筒腔共鸣放大，发出「哇——哇——」的声音。</p>
+          <p class="feat">🎮 玩法</p>
+          <ul>
+            <li>按住屏幕（或鼠标）画圈，像甩真竹蝉一样；转得越快，叫得越响。</li>
+            <li>按空格键或点「自动甩」，程序替你甩。</li>
+            <li>甩手机模式：握住手机画圈，用动作传感器驱动（陀螺仪/重力方向在机身坐标中的转动）。Android 可把本文件传到手机用浏览器打开（file:// 即可用）；iPhone 需 HTTPS 环境。</li>
+          </ul>
+          <p class="feat">🔊 音效</p>
+          <ul>
+            <li>1.72 秒采样（4 个「哇」周期，约 2.33 圈/秒）等功率交叉淡化做成无缝循环，回放速率随转速实时变化，并叠加每圈相位的音高微摆。</li>
+            <li>转速低于 1.1 圈/秒或绳子松弛时不发声；松手后声音随惯性渐弱。</li>
+            <li>采样不可用时自动回退到纯合成音效链路（锯齿波 + 软削波 + 低频调幅 + 三峰共振 + 相位扫频）。</li>
+          </ul>
+          <p class="feat">⚙️ 技术</p>
+          <ul>
+            <li>零依赖单文件，无需构建、无需联网，双击即可运行。</li>
+            <li>物理：重力 + 只拉不推的弹性绳 + 空气阻力，1/240s 定步长积分。</li>
+            <li>局域网试玩：<code>python3 -m http.server 8123</code>，手机连同一 Wi-Fi 访问 <code>http://&lt;电脑IP&gt;:8123</code></li>
+            <li>快捷键：空格=自动甩 · S=手绘/3D · L=排行 · A=成就 · D=昼夜 · M=静音 · Esc=关闭面板</li>
+          </ul>
+          <p class="feat">📊 数据</p>
+          <p>功德、本局圈数与哇声保存在本地（localStorage）；在线人数、全球访客/哇声为本地演示数据（本文件无服务器，离线运行）。</p>
+          <p class="copyright">⚠️ 本项目仅供学习交流，请勿未经授权再分发或公开部署。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="watermark">竹知了 · 单文件离线版</div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* =====================================================================
+ * 竹知了 · 云甩竹蝉 —— 单文件零依赖 Web 互动游戏
+ * ---------------------------------------------------------------------
+ * 玩法：按住屏幕画圈甩动竹蝉；空格 = 自动甩；手机模式 = 甩动手机。
+ * 物理：重力 + 只拉不推的弹性绳 + 空气阻力，1/240s 定步长积分。
+ * 音效：1.72s（4 个“哇”周期）无缝循环采样，回放速率随转速变化；
+ *       采样构建失败时回退到纯合成音效链路。
+ * =================================================================== */
+
+/* ---------------------- 1. 常量配置 ---------------------- */
+var CFG = {
+  DT: 1/240,            // 定步长（秒）
+  SOUND_MIN: 1.1,       // 发声最低转速（圈/秒）
+  SOUND_LOUD: 3.5,      // 音量拉满时的转速（圈/秒）
+  SOUND_NOM: 2.33,      // 采样名义转速（圈/秒），与 1.72s 4 个哇周期对应
+  AUTO_RPS: 2.35,       // 自动甩转速
+  AUTO_R: 0.21,         // 自动甩手部圆半径（×min(w,h)）
+  PHONE_R: 0.18,        // 手机模式手部圆半径（×min(w,h)）
+  FINGER_OFF: 34,       // 触屏锚点抬到指尖上方的像素距离
+  MANUAL_TAU: 0.045,    // 手部平滑跟随时间常数（秒）
+  ROPE_LEN: 0.27,       // 绳长（×min(w,h)）
+  G_FACTOR: 55,         // 重力 = G_FACTOR × L
+  K_REF: 9000,          // 绳刚度（参考 L=135px）
+  C_ROPE: 40,           // 绳阻尼（1/s）
+  D2_REF: 0.00022,      // 平方阻力（参考 L=135px）
+  D1: 0.30              // 线性阻力（1/s）
+};
+
+function clamp(v, a, b){ return v<a?a:(v>b?b:v); }
+function fmt(n){ return Math.round(n).toLocaleString('zh-CN'); }
+
+/* ---------------------- 2. 状态 ---------------------- */
+function makeState(){
+  return {
+    w:0, h:0, u:0, L:150, G:8000, K:9000, D2:0.00022, D1:0.3, C:40,
+    anchor:{x:0,y:0}, bob:{x:0,y:0,vx:0,vy:0},
+    mode:'manual', finger:null, fingerOff:0,
+    style:'3d', theme:'night', muted:false, sensorOk:false,
+    samples:[], autoPhi:0, phonePhase:0, phonePrevT:0, phonePrevA:null,
+    phonePrevT2:0, phonePrevA2:null, haveMotionData:false, sensorSource:null, sensorTimer:null,
+    sweep:0, revs:0, revPerSec:0, taut:false, dir:1, sounding:false, maxRps:0,
+    orbitPhase:0, spinPhase:0, time:0, last:0, acc:0
+  };
+}
+var state = makeState();
+
+function physicsResize(st, w, h){
+  st.w = w; st.h = h; st.u = Math.min(w, h);
+  st.L = CFG.ROPE_LEN * st.u;
+  st.G = CFG.G_FACTOR * st.L;
+  st.K = CFG.K_REF * (st.L / 135);
+  st.D2 = CFG.D2_REF * (135 / st.L);
+  st.D1 = CFG.D1;
+  st.C = CFG.C_ROPE;
+}
+
+/* 手部（锚点）目标：随模式更新，指数平滑跟随 */
+function physicsAnchor(st, dtf){
+  if(dtf <= 0) return;
+  var tx = st.anchor.x, ty = st.anchor.y;
+  if(st.mode === 'manual'){
+    if(st.finger){ tx = st.finger.x; ty = st.finger.y - st.fingerOff; }
+  } else if(st.mode === 'auto'){
+    st.autoPhi += Math.PI*2 * CFG.AUTO_RPS * (1 + 0.02*Math.sin(st.time*1.3)) * dtf;
+    var R = CFG.AUTO_R * st.u, cx = st.w*0.5, cy = st.h*0.42;
+    tx = cx + R*Math.cos(st.autoPhi);
+    ty = cy + R*Math.sin(st.autoPhi);
+  } else if(st.mode === 'phone'){
+    var R2 = CFG.PHONE_R * st.u, cx2 = st.w*0.5, cy2 = st.h*0.42;
+    tx = cx2 + R2*Math.cos(st.phonePhase);
+    ty = cy2 + R2*Math.sin(st.phonePhase);
+  }
+  var k = 1 - Math.exp(-dtf / CFG.MANUAL_TAU);
+  st.anchor.x += (tx - st.anchor.x) * k;
+  st.anchor.y += (ty - st.anchor.y) * k;
+}
+
+/* 物理步进：重力 + 只拉不推的弹性绳 + 空气阻力 */
+function physicsStep(st, dt, avx, avy, onRev){
+  var b = st.bob, A = st.anchor;
+  var dx = b.x - A.x, dy = b.y - A.y;
+  var dist = Math.sqrt(dx*dx + dy*dy);
+  var fx = 0, fy = st.G;
+  if(dist > st.L && dist > 1e-6){
+    var nx = dx/dist, ny = dy/dist;
+    var rvx = b.vx - avx, rvy = b.vy - avy;
+    var vrel = rvx*nx + rvy*ny;
+    var F = -st.K*(dist - st.L) - st.C*vrel;   // 只拉不推：dist<=L 时无绳力
+    fx += F*nx; fy += F*ny;
+  }
+  var sp = Math.sqrt(b.vx*b.vx + b.vy*b.vy);
+  if(sp > 0){
+    var d = st.D2*sp + st.D1;
+    fx -= d*b.vx; fy -= d*b.vy;
+  }
+  b.vx += fx*dt; b.vy += fy*dt;
+  b.x += b.vx*dt; b.y += b.vy*dt;
+  // 角速度 / 方向 / 圈数
+  var rx = b.x - A.x, ry = b.y - A.y;
+  var rd = Math.sqrt(rx*rx + ry*ry);
+  var angVel = 0, dir = 0;
+  if(rd > 1e-6){
+    var cross = rx*(b.vy - avy) - ry*(b.vx - avx);
+    angVel = Math.abs(cross) / (rd*rd);
+    dir = cross < 0 ? -1 : 1;
+  }
+  st.revPerSec = st.revPerSec*0.5 + (angVel/(Math.PI*2))*0.5;
+  st.taut = dist > st.L*0.97;
+  st.dir = dir;
+  st.sweep += angVel*dt;
+  var nr = Math.floor(st.sweep/(Math.PI*2));
+  while(nr > st.revs){ st.revs++; if(onRev) onRev(st.revs); }
+  st.orbitPhase = Math.atan2(ry, rx);
+  st.sounding = st.taut && st.revPerSec >= CFG.SOUND_MIN;
+  if(st.revPerSec > st.maxRps) st.maxRps = st.revPerSec;
+}
+
+/* ---------------------- 3. 音效 ---------------------- */
+/* 二阶带通（RBJ cookbook），用于采样合成 */
+function bpCoeffs(f, Q, sr){
+  var w = 2*Math.PI*f/sr, a = Math.sin(w)/(2*Q), cw = Math.cos(w), a0 = 1+a;
+  return { b0:a/a0, b2:-a/a0, a1:-2*cw/a0, a2:(1-a)/a0 };
+}
+function makeBP(f, Q, sr){ return { c:bpCoeffs(f,Q,sr), x1:0, x2:0, y1:0, y2:0 }; }
+function bpRun(st, x){
+  var c = st.c, y = c.b0*x + c.b2*st.x2 - c.a1*st.y1 - c.a2*st.y2;
+  st.x2 = st.x1; st.x1 = x; st.y2 = st.y1; st.y1 = y;
+  return y;
+}
+function bpSetF(st, f, Q, sr){ st.c = bpCoeffs(f, Q, sr); }
+
+/* 合成 1.72s（4 个“哇”周期）无缝循环采样
+ * 组成：锯齿波（松香黏滑摩擦脉冲，频率随每圈相位起伏）
+ *       + 白噪声（摩擦底噪）→ 相位扫频带通（“哇”的共振滑移）
+ *       → 三个并联带通共振峰（1050/2150/3350Hz，竹膜+筒腔共鸣）
+ *       + 32Hz 低频调幅（蝉鸣颗粒感）→ tanh 软削波 */
+function buildSample(sr){
+  var dur = 1.72, N = Math.floor(sr*dur), cross = Math.floor(sr*0.05), total = N + cross;
+  var raw = new Float32Array(total);
+  var cycle = dur/4;
+  var formant = makeBP(700, 4, sr);
+  var r1 = makeBP(1050, 8, sr), r2 = makeBP(2150, 9, sr), r3 = makeBP(3350, 10, sr);
+  var nbp = makeBP(1300, 0.9, sr);
+  var phase = 0;
+  for(var i=0;i<total;i++){
+    var t = i/sr;
+    var cyc = t/cycle;
+    var p = cyc - Math.floor(cyc);                 // 0..1 每周期相位
+    var env = p<0.05 ? 0.3+0.7*(p/0.05) : p<0.55 ? 1 : p<0.9 ? 1-0.7*((p-0.55)/0.35) : 0.3;
+    var fc = 88 + 55*Math.sin(Math.PI*p);          // 每周期音高起伏（“哇”的声调轮廓）
+    phase += fc/sr; if(phase > 1e7) phase -= 1e7;
+    var ph = phase - Math.floor(phase);
+    var saw = 2*ph - 1;
+    var am = 0.55 + 0.45*Math.sin(2*Math.PI*32*t); // 低频调幅颗粒感
+    var nz = (Math.random()*2 - 1)*0.5;
+    var sig = Math.tanh(saw*1.35)*0.8 + nz*0.14;   // tanh 软削波
+    bpSetF(formant, 620 + 1350*Math.pow(Math.sin(Math.PI*p), 1.4), 4, sr);
+    var a = bpRun(formant, sig);
+    var o1 = bpRun(r1, a), o2 = bpRun(r2, a), o3 = bpRun(r3, a);
+    var nb = bpRun(nbp, nz);
+    raw[i] = (o1 + o2*0.8 + o3*0.55 + nb*1.1) * env * am * 1.6;
+  }
+  var peak = 0;
+  for(var j=0;j<total;j++){ var v = Math.abs(raw[j]); if(v > peak) peak = v; }
+  if(peak > 0){ var k = 0.85/peak; for(var j2=0;j2<total;j2++) raw[j2] *= k; }
+  // 尾部 50ms 等功率交叉淡化烘进头部，做成无缝循环
+  var buf = new Float32Array(N);
+  for(var j3=0;j3<N;j3++){
+    if(j3 < cross){
+      var w = j3/cross;
+      buf[j3] = raw[j3]*Math.sqrt(w) + raw[N+j3]*Math.sqrt(1-w);
+    } else buf[j3] = raw[j3];
+  }
+  return buf;
+}
+
+/* 纯合成兜底链路（当采样构建失败时启用） */
+function tanhCurve(n){
+  var c = new Float32Array(n), k = 8;
+  for(var i=0;i<n;i++){ var x = (i/(n-1))*2-1; c[i] = Math.tanh(k*x)/Math.tanh(k); }
+  return c;
+}
+function noiseBuffer(ctx, sec){
+  var n = Math.floor(ctx.sampleRate*sec), b = ctx.createBuffer(1, n, ctx.sampleRate);
+  var d = b.getChannelData(0);
+  for(var i=0;i<n;i++) d[i] = Math.random()*2-1;
+  return b;
+}
+function createLiveSynth(ctx, masterGain){
+  var saw = ctx.createOscillator(); saw.type='sawtooth'; saw.frequency.value=90;
+  var shaper = ctx.createWaveShaper(); shaper.curve = tanhCurve(512);
+  var amOsc = ctx.createOscillator(); amOsc.type='sine'; amOsc.frequency.value=32;
+  var amDepth = ctx.createGain(); amDepth.gain.value=0.42;
+  var amGain = ctx.createGain(); amGain.gain.value=0.55;
+  var sweep = ctx.createBiquadFilter(); sweep.type='bandpass'; sweep.frequency.value=1000; sweep.Q.value=4;
+  var r1 = ctx.createBiquadFilter(); r1.type='bandpass'; r1.frequency.value=1050; r1.Q.value=8;
+  var r2 = ctx.createBiquadFilter(); r2.type='bandpass'; r2.frequency.value=2150; r2.Q.value=9;
+  var r3 = ctx.createBiquadFilter(); r3.type='bandpass'; r3.frequency.value=3350; r3.Q.value=10;
+  var noise = ctx.createBufferSource(); noise.buffer = noiseBuffer(ctx, 2); noise.loop = true;
+  var nBP = ctx.createBiquadFilter(); nBP.type='bandpass'; nBP.frequency.value=1300; nBP.Q.value=0.9;
+  var nGain = ctx.createGain(); nGain.gain.value=0.1;
+  var out = ctx.createGain(); out.gain.value=0.9;
+  saw.connect(shaper); shaper.connect(amGain);
+  amOsc.connect(amDepth); amDepth.connect(amGain.gain);
+  amGain.connect(sweep);
+  sweep.connect(r1); sweep.connect(r2); sweep.connect(r3);
+  r1.connect(out); r2.connect(out); r3.connect(out);
+  noise.connect(nBP); nBP.connect(nGain); nGain.connect(out);
+  out.connect(masterGain);
+  saw.start(); amOsc.start(); noise.start();
+  return {
+    master: out,
+    update: function(st, target, t){
+      var inten = st.sounding ? clamp((st.revPerSec-CFG.SOUND_MIN)/(CFG.SOUND_LOUD-CFG.SOUND_MIN), 0, 1) : 0;
+      saw.frequency.setTargetAtTime(55 + 140*inten, t, 0.06);
+      amOsc.frequency.setTargetAtTime(24 + 21*inten, t, 0.06);
+      sweep.frequency.setTargetAtTime(500 + 1700*(0.5+0.5*Math.sin(st.orbitPhase)), t, 0.05);
+      out.gain.setTargetAtTime(target*0.5, t, 0.06);
+    }
+  };
+}
+
+var AudioSys = { ctx:null, master:null, src:null, gain:null, mode:null, live:null };
+
+function ensureAudio(){
+  if(AudioSys.ctx){
+    if(AudioSys.ctx.state === 'suspended') AudioSys.ctx.resume();
+    return;
+  }
+  try{
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return;
+    var ctx = new AC();
+    AudioSys.ctx = ctx;
+    AudioSys.master = ctx.createGain();
+    AudioSys.master.gain.value = state.muted ? 0 : 1;
+    var comp = ctx.createDynamicsCompressor();
+    AudioSys.master.connect(comp); comp.connect(ctx.destination);
+    try{
+      var sr = ctx.sampleRate || 44100;
+      var buf = buildSample(sr);
+      var ab = ctx.createBuffer(1, buf.length, sr);
+      ab.getChannelData(0).set(buf);
+      var src = ctx.createBufferSource();
+      src.buffer = ab; src.loop = true; src.playbackRate.value = 1;
+      var g = ctx.createGain(); g.gain.value = 0;
+      src.connect(g); g.connect(AudioSys.master);
+      src.start();
+      AudioSys.src = src; AudioSys.gain = g; AudioSys.mode = 'sample';
+    }catch(e){
+      try{ AudioSys.live = createLiveSynth(ctx, AudioSys.master); AudioSys.mode = 'synth'; }catch(e2){}
+    }
+    if(ctx.state === 'suspended') ctx.resume();
+  }catch(e){}
+}
+
+function audioUpdate(st){
+  if(!AudioSys.ctx) return;
+  var t = AudioSys.ctx.currentTime;
+  var inten = st.sounding ? clamp((st.revPerSec-CFG.SOUND_MIN)/(CFG.SOUND_LOUD-CFG.SOUND_MIN), 0, 1) : 0;
+  var target = state.muted ? 0 : 0.16 + 0.84*inten;
+  if(AudioSys.mode === 'sample' && AudioSys.src){
+    AudioSys.gain.gain.setTargetAtTime(target, t, 0.06);
+    if(st.sounding){
+      var rate = clamp(st.revPerSec / CFG.SOUND_NOM, 0.5, 1.7);
+      rate *= 1 + 0.05*Math.sin(st.orbitPhase);   // 叠加每圈相位的音高微摆
+      AudioSys.src.playbackRate.setTargetAtTime(rate, t, 0.05);
+    }
+  } else if(AudioSys.mode === 'synth' && AudioSys.live){
+    AudioSys.live.update(st, target, t);
+  }
+}
+
+/* 扩散光环：按帧推进年龄 */
+function ageRings(dtf){
+  for(var i=rings.length-1;i>=0;i--){
+    rings[i].age += dtf;
+    if(rings[i].age > 1) rings.splice(i, 1);
+  }
+}
+
+/* ---------------------- 4. 存储 / 统计 / 成就 ---------------------- */
+var store = {
+  get: function(k, d){ try{ var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set: function(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+
+var Stats = {
+  gdTotal: store.get('zzl.gd', 0), gdSession: 0,
+  waTotal: store.get('zzl.wa', 0), waSession: 0,
+  autoTotal: store.get('zzl.ar', 0), phoneWa: 0,
+  maxRps: 0, usedDoodle: !!store.get('zzl.ud', false),
+  themeToggles: store.get('zzl.tt', 0), shared: !!store.get('zzl.sh', false),
+  ach: store.get('zzl.ach', {})
+};
+
+var GLOBAL = {
+  waBase: 43150000, visitorsBase: 150000, visitsBase: 168000,
+  visitors: 150000, visits: 168000, online: 1200
+};
+(function(){
+  var lv = store.get('zzl.lv', 0);
+  var first = store.get('zzl.fv', true);
+  if(first){ GLOBAL.visitors += 1; store.set('zzl.fv', false); }
+  GLOBAL.visits = GLOBAL.visitsBase + lv + 1;
+  store.set('zzl.lv', lv + 1);
+})();
+
+var ACH = [
+  {id:'first', icon:'🌱', name:'初啼', desc:'第一次发出「哇」声', check:function(s){ return s.waSession >= 1; }},
+  {id:'ten', icon:'🎋', name:'十全十美', desc:'单局完成 10 圈', check:function(s){ return s.gdSession >= 10; }},
+  {id:'hundred', icon:'🌀', name:'百转千回', desc:'单局完成 100 圈', check:function(s){ return s.gdSession >= 100; }},
+  {id:'thousand', icon:'🔥', name:'千锤百炼', desc:'累计功德达到 1000', check:function(s){ return s.gdTotal >= 1000; }},
+  {id:'tenk', icon:'👑', name:'万转蝉仙', desc:'累计功德达到 10000', check:function(s){ return s.gdTotal >= 10000; }},
+  {id:'fast', icon:'💨', name:'追风少年', desc:'转速达到 4 圈/秒', check:function(s){ return s.maxRps >= 4; }},
+  {id:'auto', icon:'🤖', name:'自动达人', desc:'自动甩累计 300 圈', check:function(s){ return s.autoTotal >= 300; }},
+  {id:'doodle', icon:'✏️', name:'手绘之心', desc:'使用手绘小蝉形象', check:function(s){ return !!s.usedDoodle; }},
+  {id:'phone', icon:'📱', name:'甩手机大师', desc:'手机模式累计 100 声哇', check:function(s){ return s.phoneWa >= 100; }},
+  {id:'night', icon:'🌙', name:'昼夜行者', desc:'切换过白天/夜间主题', check:function(s){ return s.themeToggles >= 1; }},
+  {id:'share', icon:'📣', name:'广而告之', desc:'分享过一次战绩', check:function(s){ return !!s.shared; }},
+  {id:'master', icon:'🏮', name:'竹蝉宗师', desc:'累计功德 100 且单局 50 圈', check:function(s){ return s.gdTotal >= 100 && s.gdSession >= 50; }}
+];
+
+function persistStats(){
+  store.set('zzl.gd', Stats.gdTotal);
+  store.set('zzl.wa', Stats.waTotal);
+  store.set('zzl.ar', Stats.autoTotal);
+  store.set('zzl.ud', Stats.usedDoodle);
+  store.set('zzl.tt', Stats.themeToggles);
+  store.set('zzl.sh', Stats.shared);
+  store.set('zzl.ach', Stats.ach);
+}
+
+function checkAchievements(){
+  var any = false;
+  for(var i=0;i<ACH.length;i++){
+    var a = ACH[i];
+    if(Stats.ach[a.id]) continue;
+    if(a.check(Stats)){
+      Stats.ach[a.id] = 1;
+      any = true;
+      toast(a.icon + ' 解锁成就「' + a.name + '」');
+    }
+  }
+  if(any){ persistStats(); buildAchGrid(); }
+}
+
+function saveSession(){
+  if(Stats.gdSession > 0){
+    var name = (UI.nick.value || '').trim() || '蝉友';
+    store.set('zzl.cur', { name:name, score:Stats.gdSession, t:Date.now() });
+  }
+}
+
+/* ---------------------- 5. 输入 ---------------------- */
+var canvas, ctx2d;
+var rings = [];   // 每圈“哇”的扩散光环
+
+function onDown(e){
+  ensureAudio();
+  if(state.mode !== 'manual'){ state.mode = 'manual'; updateDock(); updateModeChip(); }
+  state.finger = { x:e.clientX, y:e.clientY };
+  state.fingerOff = (e.pointerType === 'touch') ? CFG.FINGER_OFF : 0;
+  state.samples = [{ x:e.clientX, y:e.clientY, t:performance.now() }];
+  try{ canvas.setPointerCapture(e.pointerId); }catch(err){}
+  canvas.classList.add('dragging');
+  e.preventDefault();
+}
+function onMove(e){
+  if(!state.finger) return;
+  state.finger = { x:e.clientX, y:e.clientY };
+  state.samples.push({ x:e.clientX, y:e.clientY, t:performance.now() });
+  if(state.samples.length > 48) state.samples.shift();
+}
+function onUp(){
+  if(!state.finger) return;
+  state.finger = null;
+  canvas.classList.remove('dragging');
+}
+
+function onKey(e){
+  if(e.target && e.target.tagName === 'INPUT') return;
+  var k = e.code || e.key;
+  if(k === 'Space'){ e.preventDefault(); toggleAuto(); }
+  else if(k === 'KeyS') toggleStyle();
+  else if(k === 'KeyL') togglePanel('rank');
+  else if(k === 'KeyA') togglePanel('ach');
+  else if(k === 'KeyD') toggleTheme();
+  else if(k === 'KeyM') toggleMute();
+  else if(k === 'Escape') closePanel();
+}
+
+/* ---------------------- 6. UI ---------------------- */
+var UI = {};
+function grabUI(){
+  ['st-online','st-visitors','st-visits','st-wa','gd-num','wa-session','gd-session',
+   'modeChip','hint','toasts','panel','panel-title','global-rank','local-rank',
+   'nick','btn-share','ach-grid','b-auto','b-style','b-phone','b-rank','b-ach','b-theme','b-mute',
+   'tab-rank','tab-ach','tab-about']
+    .forEach(function(id){ UI[id] = document.getElementById(id); });
+}
+
+function toast(msg){
+  if(!UI.toasts) return;
+  var d = document.createElement('div');
+  d.className = 'toast';
+  d.textContent = msg;
+  UI.toasts.appendChild(d);
+  setTimeout(function(){
+    d.classList.add('bye');
+    setTimeout(function(){ if(d.parentNode) d.parentNode.removeChild(d); }, 600);
+  }, 3000);
+}
+
+var shown = {};
+function animateTo(id, target){
+  var el = document.getElementById(id);
+  if(!el) return;
+  var cur = shown[id] == null ? 0 : shown[id];
+  if(Math.abs(cur - target) < 1){ shown[id] = target; el.textContent = fmt(target); return; }
+  var t0 = performance.now(), from = cur;
+  shown[id] = target;
+  (function step(){
+    var p = Math.min((performance.now() - t0)/500, 1);
+    var v = from + (target - from) * (1 - Math.pow(1 - p, 3));
+    el.textContent = fmt(v);
+    if(p < 1) requestAnimationFrame(step);
+  })();
+}
+
+function bumpGd(){
+  UI['gd-num'].classList.add('bump');
+  setTimeout(function(){ UI['gd-num'].classList.remove('bump'); }, 180);
+}
+
+function updateStatsDOM(){
+  animateTo('st-online', GLOBAL.online);
+  animateTo('st-visitors', GLOBAL.visitors);
+  animateTo('st-visits', GLOBAL.visits);
+  animateTo('st-wa', GLOBAL.waBase + Stats.waTotal);
+  UI['gd-num'].textContent = fmt(Stats.gdTotal);
+  UI['wa-session'].textContent = fmt(Stats.waSession);
+  UI['gd-session'].textContent = fmt(Stats.gdSession);
+}
+
+function updateModeChip(){
+  if(state.mode === 'auto'){
+    UI.modeChip.textContent = '🤖 自动甩动中…（按空格或触摸屏幕停止）';
+    UI.modeChip.classList.remove('hidden');
+  } else if(state.mode === 'phone'){
+    UI.modeChip.textContent = state.haveMotionData
+      ? '📱 甩手机模式：握住手机画圈'
+      : '📱 传感器连接中…（首次请允许权限）';
+    UI.modeChip.classList.remove('hidden');
+  } else {
+    UI.modeChip.classList.add('hidden');
+  }
+}
+
+function updateDock(){
+  UI['b-auto'].textContent = state.mode === 'auto' ? '⏸ 停止自动' : '⏺ 自动甩';
+  UI['b-auto'].classList.toggle('active', state.mode === 'auto');
+  UI['b-style'].textContent = state.style === '3d' ? '✏️ 手绘小蝉' : '🪵 3D 建模';
+  UI['b-phone'].textContent = state.mode === 'phone' ? '📱 甩手机中' : '📱 甩手机';
+  UI['b-phone'].classList.toggle('active', state.mode === 'phone');
+  UI['b-theme'].textContent = state.theme === 'night' ? '☀️ 白天' : '🌙 夜间';
+  UI['b-mute'].textContent = state.muted ? '🔇 静音中' : '🔊 声音';
+  UI['b-mute'].classList.toggle('active', state.muted);
+}
+
+function toggleAuto(){
+  ensureAudio();
+  if(state.mode === 'auto'){
+    state.mode = 'manual';
+    toast('已停止自动甩');
+  } else {
+    state.mode = 'auto';
+    toast('自动甩动中…（按空格或触摸屏幕停止）');
+  }
+  updateDock(); updateModeChip();
+}
+
+function toggleStyle(){
+  state.style = state.style === '3d' ? '2d' : '3d';
+  Stats.usedDoodle = Stats.usedDoodle || state.style === '2d';
+  store.set('zzl.ud', Stats.usedDoodle);
+  checkAchievements();
+  updateDock();
+  toast(state.style === '2d' ? '已切换为手绘小蝉 ✏️' : '已切换为 3D 建模 🪵');
+}
+
+function toggleTheme(){
+  state.theme = state.theme === 'night' ? 'day' : 'night';
+  document.body.dataset.theme = state.theme;
+  Stats.themeToggles++;
+  store.set('zzl.tt', Stats.themeToggles);
+  checkAchievements();
+  updateDock();
+  toast(state.theme === 'night' ? '已切换为月夜 🌙' : '已切换为白天 ☀️');
+}
+
+function toggleMute(){
+  state.muted = !state.muted;
+  if(AudioSys.master) AudioSys.master.gain.value = state.muted ? 0 : 1;
+  updateDock();
+  toast(state.muted ? '已静音 🔇' : '声音已开启 🔊');
+}
+
+function sensorDataArrived(){
+  if(!state.haveMotionData){
+    state.haveMotionData = true;
+    if(state.sensorTimer){ clearTimeout(state.sensorTimer); state.sensorTimer = null; }
+    updateModeChip();
+  }
+}
+
+function onMotion(e){
+  if(state.mode !== 'phone' || state.sensorSource === 'orient') return;
+  var t = e.timeStamp;
+  var dt = state.phonePrevT ? Math.min((t - state.phonePrevT)/1000, 0.1) : 0;
+  state.phonePrevT = t;
+  var d = 0;
+  var rr = e.rotationRate;
+  if(rr && typeof rr.alpha === 'number'){
+    d = rr.alpha * Math.PI/180 * dt;          // 绕屏幕法线旋转（画圈甩动）
+  } else {
+    var g = e.accelerationIncludingGravity;
+    if(g){
+      var proj = Math.sqrt(g.x*g.x + g.y*g.y);
+      if(proj > 3){
+        var a = Math.atan2(g.y, g.x);          // 重力方向在机身坐标中的转动
+        if(state.phonePrevA != null){
+          var dd = a - state.phonePrevA;
+          if(dd > Math.PI) dd -= 2*Math.PI;
+          if(dd < -Math.PI) dd += 2*Math.PI;
+          d = dd;
+        }
+        state.phonePrevA = a;
+      }
+    }
+  }
+  if(dt > 0){ state.phonePhase += d; state.phoneSpeed = d/dt; }
+  if(!state.sensorSource) state.sensorSource = 'motion';
+  sensorDataArrived();
+}
+
+/* 兜底：部分浏览器只提供 deviceorientation（倾斜角在机身坐标中的转动） */
+function onMotion2(e){
+  if(state.mode !== 'phone' || state.sensorSource === 'motion') return;
+  var t = e.timeStamp;
+  var dt = state.phonePrevT2 ? Math.min((t - state.phonePrevT2)/1000, 0.1) : 0;
+  state.phonePrevT2 = t;
+  var beta = e.beta, gamma = e.gamma;
+  if(beta == null || gamma == null) return;
+  var a = Math.atan2(beta, gamma);             // 画圈时倾斜角旋转 → 甩杆相位
+  if(state.phonePrevA2 != null && dt > 0){
+    var dd = a - state.phonePrevA2;
+    if(dd > Math.PI) dd -= 2*Math.PI;
+    if(dd < -Math.PI) dd += 2*Math.PI;
+    state.phonePhase += dd;
+    state.phoneSpeed = dd/dt;
+  }
+  state.phonePrevA2 = a;
+  if(!state.sensorSource) state.sensorSource = 'orient';
+  sensorDataArrived();
+}
+
+function checkSensorData(){
+  if(state.haveMotionData) return;
+  var msg = window.isSecureContext
+    ? '未收到传感器数据：请确认已允许「动作与方向」权限；设备无陀螺仪时可改用「自动甩」'
+    : '当前为 HTTP 环境，收不到传感器数据：Android 请把 index.html 传到手机用浏览器打开（file:// 可用）；iPhone 需 HTTPS 服务器';
+  toast(msg);
+  updateModeChip();
+}
+
+function enablePhone(){
+  ensureAudio();
+  var hasAPI = !!(window.DeviceOrientationEvent || window.DeviceMotionEvent);
+  if(!hasAPI){
+    toast('当前浏览器不支持动作传感器：请用手机自带浏览器（Chrome/Edge/Safari）打开，微信/QQ/App 内浏览器不可用');
+    return;
+  }
+  var req = [];
+  if(window.DeviceOrientationEvent && DeviceOrientationEvent.requestPermission){
+    req.push(DeviceOrientationEvent.requestPermission().catch(function(){ return 'denied'; }));
+  }
+  if(window.DeviceMotionEvent && DeviceMotionEvent.requestPermission){
+    req.push(DeviceMotionEvent.requestPermission().catch(function(){ return 'denied'; }));
+  }
+  Promise.all(req).then(function(res){
+    if(res.indexOf('denied') >= 0){
+      toast('传感器权限被拒绝：iOS 请在 设置>Safari>运动与方向访问（或 设置>隐私>运动与健身）开启后重试');
+      return;
+    }
+    state.mode = 'phone';
+    state.haveMotionData = false;
+    state.sensorSource = null;
+    state.phonePrevT = 0; state.phonePrevA = null;
+    state.phonePrevT2 = 0; state.phonePrevA2 = null;
+    window.addEventListener('devicemotion', onMotion);
+    window.addEventListener('deviceorientation', onMotion2);
+    if(state.sensorTimer) clearTimeout(state.sensorTimer);
+    state.sensorTimer = setTimeout(checkSensorData, 3000);
+    updateDock(); updateModeChip();
+    toast(window.isSecureContext ? '甩手机模式已开启：握住手机画圈 📱' : '已尝试开启传感器（HTTP 环境，若 3 秒后无数据请看提示）');
+  }).catch(function(){
+    toast('传感器授权失败，请重试或改用「自动甩」');
+  });
+}
+
+/* ---------------------- 7. 面板 ---------------------- */
+function openPanel(tab){
+  UI.panel.classList.add('open');
+  showTab(tab);
+}
+function closePanel(){ UI.panel.classList.remove('open'); }
+function togglePanel(tab){
+  if(UI.panel.classList.contains('open')) closePanel();
+  else openPanel(tab);
+}
+function showTab(tab){
+  UI['panel-title'].textContent = tab === 'rank' ? '排行榜' : tab === 'ach' ? '成就' : '关于';
+  var tabs = UI.panel.querySelectorAll('.tab');
+  for(var i=0;i<tabs.length;i++) tabs[i].classList.toggle('active', tabs[i].getAttribute('data-tab') === tab);
+  UI['tab-rank'].classList.toggle('hidden', tab !== 'rank');
+  UI['tab-ach'].classList.toggle('hidden', tab !== 'ach');
+  UI['tab-about'].classList.toggle('hidden', tab !== 'about');
+  if(tab === 'rank') buildRankPanel();
+  if(tab === 'ach') buildAchGrid();
+}
+
+var GLOBAL_RANK = [
+  ['南山隐蝉', 43150000], ['竹海听风', 26800000], ['蝉鸣十里', 16230000], ['松香小筑', 9380000],
+  ['一千万玩具', 7210000], ['月下竹影', 5300000], ['哇声不断', 3910000], ['童趣满堂', 2750000],
+  ['清风鸣蝉', 1880000], ['竹杖芒鞋', 1260000], ['蛙声一片', 890000], ['蝉友千寻', 520000]
+];
+
+function buildRankPanel(){
+  var name = (UI.nick.value || '').trim() || '蝉友';
+  var htmlG = '';
+  for(var i=0;i<GLOBAL_RANK.length;i++){
+    htmlG += '<li><span class="nm">' + GLOBAL_RANK[i][0] + '</span><span class="sc">' + fmt(GLOBAL_RANK[i][1]) + '</span></li>';
+  }
+  UI['global-rank'].innerHTML = htmlG;
+  var lb = store.get('zzl.lb', []);
+  var htmlL = '';
+  if(lb.length === 0){
+    htmlL = '<li style="opacity:.5"><span class="nm">暂无记录，快去甩起来！</span><span class="sc">—</span></li>';
+  } else {
+    for(var j=0;j<lb.length;j++){
+      var isMe = lb[j].name === name;
+      htmlL += '<li' + (isMe ? ' class="me"' : '') + '><span class="nm">' + lb[j].name + '</span><span class="sc">' + fmt(lb[j].score) + '</span></li>';
+    }
+  }
+  UI['local-rank'].innerHTML = htmlL;
+}
+
+function buildAchGrid(){
+  var html = '';
+  for(var i=0;i<ACH.length;i++){
+    var a = ACH[i], on = !!Stats.ach[a.id];
+    html += '<div class="ach-item' + (on ? '' : ' locked') + '"><span class="ic">' + (on ? a.icon : '🔒') +
+            '</span><span class="nm">' + a.name + '</span><span class="ds">' + a.desc + '</span></div>';
+  }
+  UI['ach-grid'].innerHTML = html;
+}
+
+function shareScore(){
+  var text = '我在「竹知了 · 云甩竹蝉」累计功德 ' + Stats.gdTotal + '，本局哇声 ' + Stats.waSession +
+             ' 次！🎋 “一千万以内最好的玩具”，你也来试试～';
+  var done = function(){ Stats.shared = true; store.set('zzl.sh', true); checkAchievements(); };
+  if(navigator.share){
+    navigator.share({ title:'竹知了', text:text, url:location.href }).then(done).catch(function(){});
+  } else if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){ toast('战绩已复制 📋'); done(); }).catch(function(){ copyFallback(text); done(); });
+  } else { copyFallback(text); done(); }
+}
+function copyFallback(text){
+  var ta = document.createElement('textarea');
+  ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); toast('战绩已复制 📋'); }catch(e){}
+  document.body.removeChild(ta);
+}
+
+function bindUI(){
+  grabUI();
+  canvas = document.getElementById('scene');
+  ctx2d = canvas.getContext('2d');
+  canvas.addEventListener('pointerdown', onDown);
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
+  window.addEventListener('keydown', onKey);
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
+  window.addEventListener('beforeunload', function(){ saveSession(); persistStats(); });
+  var acts = {
+    auto: toggleAuto, style: toggleStyle, phone: enablePhone,
+    rank: function(){ openPanel('rank'); }, ach: function(){ openPanel('ach'); },
+    theme: toggleTheme, mute: toggleMute, close: closePanel
+  };
+  document.querySelectorAll('#dock button, .close').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      var act = btn.getAttribute('data-act');
+      if(acts[act]) acts[act]();
+      e.stopPropagation();
+    });
+  });
+  document.querySelectorAll('.tab').forEach(function(tb){
+    tb.addEventListener('click', function(){ showTab(tb.getAttribute('data-tab')); });
+  });
+  UI['btn-share'].addEventListener('click', shareScore);
+  UI.panel.addEventListener('click', function(e){ if(e.target === UI.panel) closePanel(); });
+  UI.nick.addEventListener('change', function(){ store.set('zzl.name', UI.nick.value); });
+  UI.nick.value = store.get('zzl.name', '');
+  // 合并上一次会话成绩
+  var cur = store.get('zzl.cur', null);
+  if(cur && cur.score > 0){
+    var lb = store.get('zzl.lb', []);
+    lb.push({ name:cur.name, score:cur.score, t:cur.t });
+    lb.sort(function(a,b){ return b.score - a.score; });
+    store.set('zzl.lb', lb.slice(0, 10));
+    store.set('zzl.cur', null);
+  }
+}
+
+/* ---------------------- 8. 渲染 ---------------------- */
+var stars = [], bamboo = [], fireflies = [];
+
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    var t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function buildStars(){
+  stars = [];
+  var rnd = mulberry32(20260731);
+  for(var i=0;i<130;i++){
+    stars.push({ x:rnd()*1, y:rnd()*0.8, r:0.5+rnd()*1.4, tw:0.5+rnd()*2, ph:rnd()*6.283 });
+  }
+}
+function buildBamboo(){
+  bamboo = [];
+  var rnd = mulberry32(20260731);
+  var layers = [ { n:5, a:0.16 }, { n:6, a:0.32 } ];
+  for(var li=0; li<layers.length; li++){
+    var L = layers[li];
+    for(var i=0;i<L.n;i++){
+      bamboo.push({
+        x: rnd()*1, w: (6+rnd()*10)/state.u*state.w, h: (0.55+rnd()*0.5)*1,
+        bend: (rnd()-0.5)*0.2, segs: 4+Math.floor(rnd()*3),
+        alpha: L.a, phase: rnd()*6.283, sway: 0.3+rnd()*0.5
+      });
+    }
+  }
+  fireflies = [];
+  for(var f=0;f<14;f++){
+    fireflies.push({ x:rnd()*1, y:0.15+rnd()*0.7, ph:rnd()*6.283, sp:0.2+rnd()*0.5, dx:(rnd()-0.5)*0.02 });
+  }
+}
+
+function onResize(){
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var w = window.innerWidth, h = window.innerHeight;
+  canvas.width = Math.round(w*dpr); canvas.height = Math.round(h*dpr);
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+  var prevU = state.u;
+  physicsResize(state, w, h);
+  if(prevU <= 0){
+    state.anchor.x = w*0.5; state.anchor.y = h*0.42;
+    state.bob.x = state.anchor.x; state.bob.y = state.anchor.y + state.L;
+  } else {
+    var k = state.u / prevU;
+    state.anchor.x *= k; state.anchor.y *= k;
+    state.bob.x *= k; state.bob.y *= k;
+    state.bob.vx *= k; state.bob.vy *= k;
+  }
+  buildBamboo();
+}
+
+function drawSky(t){
+  var g = ctx2d.createLinearGradient(0, 0, 0, state.h);
+  if(state.theme === 'night'){
+    g.addColorStop(0, '#050d1c'); g.addColorStop(0.45, '#0b2040');
+    g.addColorStop(0.8, '#14335c'); g.addColorStop(1, '#1b4270');
+  } else {
+    g.addColorStop(0, '#6fb9ee'); g.addColorStop(0.6, '#c3e9ff'); g.addColorStop(1, '#e9f7ff');
+  }
+  ctx2d.fillStyle = g;
+  ctx2d.fillRect(0, 0, state.w, state.h);
+  if(state.theme === 'night'){
+    for(var i=0;i<stars.length;i++){
+      var s = stars[i];
+      var a = 0.22 + 0.7*Math.abs(Math.sin(t*s.tw + s.ph));
+      ctx2d.globalAlpha = a;
+      ctx2d.fillStyle = '#eaf4ff';
+      ctx2d.fillRect(s.x*state.w, s.y*state.h, s.r, s.r);
+    }
+    ctx2d.globalAlpha = 1;
+    // 萤火虫
+    for(var f=0;f<fireflies.length;f++){
+      var ff = fireflies[f];
+      var fx = (ff.x + Math.sin(t*ff.sp + ff.ph)*0.03)*state.w;
+      var fy = (ff.y + Math.cos(t*ff.sp*0.8 + ff.ph)*0.02)*state.h;
+      var fa = 0.25 + 0.75*Math.max(0, Math.sin(t*ff.sp*3 + ff.ph*2));
+      var rg = ctx2d.createRadialGradient(fx, fy, 0, fx, fy, 8);
+      rg.addColorStop(0, 'rgba(200,255,170,' + (0.5*fa) + ')');
+      rg.addColorStop(1, 'rgba(200,255,170,0)');
+      ctx2d.fillStyle = rg;
+      ctx2d.fillRect(fx-8, fy-8, 16, 16);
+    }
+  }
+  // 月 / 日
+  var mx = state.w*0.84, my = state.h*0.15, mr = Math.min(state.w, state.h)*0.05;
+  if(state.theme === 'night'){
+    var mg = ctx2d.createRadialGradient(mx, my, mr*0.3, mx, my, mr*3.2);
+    mg.addColorStop(0, 'rgba(245,240,224,0.4)'); mg.addColorStop(1, 'rgba(245,240,224,0)');
+    ctx2d.fillStyle = mg; ctx2d.fillRect(mx-mr*3.2, my-mr*3.2, mr*6.4, mr*6.4);
+    ctx2d.fillStyle = '#f3eedd';
+    ctx2d.beginPath(); ctx2d.arc(mx, my, mr, 0, 6.283); ctx2d.fill();
+    ctx2d.fillStyle = 'rgba(160,150,120,0.35)';
+    ctx2d.beginPath(); ctx2d.arc(mx-mr*0.3, my-mr*0.15, mr*0.22, 0, 6.283); ctx2d.fill();
+    ctx2d.beginPath(); ctx2d.arc(mx+mr*0.35, my+mr*0.3, mr*0.15, 0, 6.283); ctx2d.fill();
+    ctx2d.beginPath(); ctx2d.arc(mx+mr*0.05, my-mr*0.45, mr*0.12, 0, 6.283); ctx2d.fill();
+  } else {
+    var sg = ctx2d.createRadialGradient(mx, my, mr*0.2, mx, my, mr*4);
+    sg.addColorStop(0, 'rgba(255,220,120,0.55)'); sg.addColorStop(1, 'rgba(255,220,120,0)');
+    ctx2d.fillStyle = sg; ctx2d.fillRect(mx-mr*4, my-mr*4, mr*8, mr*8);
+    ctx2d.fillStyle = '#ffe9a8';
+    ctx2d.beginPath(); ctx2d.arc(mx, my, mr, 0, 6.283); ctx2d.fill();
+  }
+  drawBamboo(t);
+  // 山岚薄雾
+  var mist = ctx2d.createLinearGradient(0, state.h*0.72, 0, state.h);
+  mist.addColorStop(0, 'rgba(180,210,230,0)');
+  mist.addColorStop(0.5, state.theme === 'night' ? 'rgba(180,210,230,0.05)' : 'rgba(255,255,255,0.25)');
+  mist.addColorStop(1, state.theme === 'night' ? 'rgba(180,210,230,0.10)' : 'rgba(255,255,255,0.35)');
+  ctx2d.fillStyle = mist;
+  ctx2d.fillRect(0, state.h*0.72, state.w, state.h*0.28);
+  if(state.theme === 'night'){
+    var vg = ctx2d.createRadialGradient(state.w/2, state.h/2, Math.min(state.w,state.h)*0.45, state.w/2, state.h/2, Math.max(state.w,state.h)*0.75);
+    vg.addColorStop(0, 'rgba(0,0,10,0)'); vg.addColorStop(1, 'rgba(0,0,10,0.3)');
+    ctx2d.fillStyle = vg; ctx2d.fillRect(0, 0, state.w, state.h);
+  }
+}
+
+function drawBamboo(t){
+  var w = state.w, h = state.h, u = state.u;
+  for(var i=0;i<bamboo.length;i++){
+    var b = bamboo[i];
+    ctx2d.save();
+    ctx2d.globalAlpha = b.alpha;
+    var col = state.theme === 'night' ? '#0a2530' : '#9cc08c';
+    ctx2d.strokeStyle = col;
+    var sway = Math.sin(t*0.6 + b.phase) * b.sway * u*0.012;
+    var bx = b.x*w, bh = b.h*h, bend = b.bend*w;
+    ctx2d.lineWidth = b.w; ctx2d.lineCap = 'round';
+    ctx2d.beginPath();
+    ctx2d.moveTo(bx, h);
+    ctx2d.quadraticCurveTo(bx + bend*0.35 + sway*0.3, h - bh*0.45, bx + bend + sway, h - bh);
+    ctx2d.stroke();
+    // 竹节
+    ctx2d.lineWidth = 1;
+    for(var s=1;s<b.segs;s++){
+      var p = s/b.segs, py = h - bh*p;
+      var px = bx + (2*(1-p)*bend*0.35 + p*bend) + sway*p;
+      ctx2d.beginPath();
+      ctx2d.ellipse(px, py, b.w*0.6, b.w*0.2, 0, 0, 6.283);
+      ctx2d.stroke();
+    }
+    // 竹叶
+    var leafN = 2 + (b.segs % 3);
+    for(var l=0;l<leafN;l++){
+      var la = l/leafN*3.14 + b.phase;
+      var lx = bx + bend + sway, ly = h - bh;
+      var llen = (14 + l*6)*u/500, lwid = (3.5)*u/500;
+      ctx2d.save();
+      ctx2d.translate(lx, ly - l*2);
+      ctx2d.rotate(-0.6 + la*0.35);
+      ctx2d.beginPath();
+      ctx2d.ellipse(0, 0, llen, lwid, 0, 0, 6.283);
+      ctx2d.fillStyle = col;
+      ctx2d.fill();
+      ctx2d.restore();
+    }
+    ctx2d.restore();
+  }
+}
+
+function drawRope(){
+  var A = state.anchor, b = state.bob;
+  var dx = A.x - b.x, dy = A.y - b.y;
+  var dl = Math.sqrt(dx*dx + dy*dy) || 1;
+  var ux = dx/dl, uy = dy/dl;
+  var S = clamp(state.u/520, 0.72, 1.35);
+  var attach = state.style === '3d' ? (44*0.5 + 8.5*1.2)*S : (16 + 3)*S;
+  var ex = b.x + ux*attach, ey = b.y + uy*attach;
+  ctx2d.strokeStyle = state.theme === 'night' ? 'rgba(214,180,130,0.9)' : 'rgba(122,92,54,0.9)';
+  ctx2d.lineWidth = 2.4;
+  ctx2d.lineCap = 'round';
+  var segLen = Math.sqrt((A.x-ex)*(A.x-ex) + (A.y-ey)*(A.y-ey));
+  if(segLen < state.L*0.98){
+    var sag = (1 - segLen/state.L) * state.L * 0.35;
+    ctx2d.beginPath();
+    ctx2d.moveTo(A.x, A.y);
+    ctx2d.quadraticCurveTo((A.x+ex)/2, (A.y+ey)/2 + sag, ex, ey);
+    ctx2d.stroke();
+  } else {
+    ctx2d.beginPath();
+    ctx2d.moveTo(A.x, A.y);
+    ctx2d.lineTo(ex, ey);
+    ctx2d.stroke();
+  }
+  // 手部锚点
+  var pulse = 1 + 0.08*Math.sin(state.time*4);
+  ctx2d.beginPath();
+  ctx2d.arc(A.x, A.y, 13*pulse, 0, 6.283);
+  ctx2d.strokeStyle = state.theme === 'night' ? 'rgba(234,242,255,0.35)' : 'rgba(18,48,63,0.35)';
+  ctx2d.lineWidth = 2;
+  ctx2d.stroke();
+  ctx2d.beginPath();
+  ctx2d.arc(A.x, A.y, 4, 0, 6.283);
+  ctx2d.fillStyle = state.theme === 'night' ? 'rgba(234,242,255,0.6)' : 'rgba(18,48,63,0.6)';
+  ctx2d.fill();
+}
+
+function drawGuide(){
+  if(state.mode === 'auto' || state.mode === 'phone'){
+    var R = (state.mode === 'auto' ? CFG.AUTO_R : CFG.PHONE_R)*state.u;
+    ctx2d.save();
+    ctx2d.setLineDash([4, 7]);
+    ctx2d.strokeStyle = 'rgba(255,255,255,0.16)';
+    ctx2d.lineWidth = 1.5;
+    ctx2d.beginPath();
+    ctx2d.arc(state.w*0.5, state.h*0.42, R, 0, 6.283);
+    ctx2d.stroke();
+    ctx2d.restore();
+  }
+}
+
+function drawFingerTrail(){
+  var s = state.samples;
+  if(!s || s.length < 2 || !state.finger) return;
+  var now = performance.now();
+  ctx2d.save();
+  ctx2d.globalAlpha = 0.5;
+  ctx2d.strokeStyle = 'rgba(255,255,255,0.14)';
+  ctx2d.lineWidth = 3;
+  ctx2d.beginPath();
+  ctx2d.moveTo(s[0].x, s[0].y);
+  for(var i=1;i<s.length;i++) ctx2d.lineTo(s[i].x, s[i].y);
+  ctx2d.stroke();
+  for(var j=0;j<s.length;j++){
+    var age = (now - s[j].t)/1200;
+    if(age > 1) continue;
+    ctx2d.globalAlpha = (1-age)*0.3;
+    ctx2d.beginPath();
+    ctx2d.arc(s[j].x, s[j].y, 3.5, 0, 6.283);
+    ctx2d.fillStyle = '#fff';
+    ctx2d.fill();
+  }
+  ctx2d.restore();
+}
+
+function drawGlow(){
+  if(!state.sounding) return;
+  var b = state.bob;
+  var inten = clamp((state.revPerSec - CFG.SOUND_MIN)/(CFG.SOUND_LOUD - CFG.SOUND_MIN), 0, 1);
+  var r = 22 + 16*inten + 2*Math.sin(state.time*18);
+  var g = ctx2d.createRadialGradient(b.x, b.y, 0, b.x, b.y, r);
+  g.addColorStop(0, 'rgba(255,224,150,' + (0.10 + 0.16*inten) + ')');
+  g.addColorStop(1, 'rgba(255,224,150,0)');
+  ctx2d.fillStyle = g;
+  ctx2d.fillRect(b.x-r, b.y-r, r*2, r*2);
+}
+
+function drawRings(){
+  for(var i=rings.length-1;i>=0;i--){
+    var r = rings[i];
+    var rr = 10 + 46*r.age;
+    ctx2d.globalAlpha = (1-r.age)*0.3;
+    ctx2d.strokeStyle = '#ffe9a8';
+    ctx2d.lineWidth = 1.5;
+    ctx2d.beginPath();
+    ctx2d.arc(r.x, r.y, rr, 0, 6.283);
+    ctx2d.stroke();
+  }
+  ctx2d.globalAlpha = 1;
+}
+
+function drawCicada(){
+  var A = state.anchor, b = state.bob;
+  var dx = A.x - b.x, dy = A.y - b.y;
+  var dl = Math.sqrt(dx*dx + dy*dy) || 1;
+  var ux = dx/dl, uy = dy/dl;
+  var theta = Math.atan2(uy, ux);          // bob → anchor 的方向
+  var S = clamp(state.u/520, 0.72, 1.35);
+  ctx2d.save();
+  ctx2d.translate(b.x, b.y);
+  ctx2d.rotate(theta - Math.PI/2);        // 局部 +y 指向锚点（头部朝绳）
+  if(state.style === '3d') drawCicada3D(S);
+  else drawDoodle(S);
+  ctx2d.restore();
+}
+
+function drawWings(spin, S, len, wd, col, veinCol, alpha){
+  // 翅膀绕体轴旋转；转速快时叠加多份形成旋转模糊
+  var blur = clamp((state.revPerSec - 0.6)/2.2, 0, 1);
+  var copies = 1 + Math.round(blur*5);
+  for(var c=0;c<copies;c++){
+    var a = spin + (c/(copies || 1))*0.45;
+    ctx2d.save();
+    ctx2d.rotate(a);
+    ctx2d.globalAlpha = alpha*(1 - c/(copies+1));
+    // 前翅
+    ctx2d.beginPath();
+    ctx2d.moveTo(0, -len*0.18);
+    ctx2d.quadraticCurveTo(len*0.62, -len*0.34, len, -len*0.08);
+    ctx2d.quadraticCurveTo(len*0.5, len*0.2, 0, len*0.16);
+    ctx2d.closePath();
+    ctx2d.fillStyle = col; ctx2d.fill();
+    ctx2d.strokeStyle = veinCol; ctx2d.lineWidth = 0.8; ctx2d.stroke();
+    // 后翅
+    ctx2d.beginPath();
+    ctx2d.moveTo(0, len*0.05);
+    ctx2d.quadraticCurveTo(len*0.5, len*0.16, len*0.72, len*0.4);
+    ctx2d.quadraticCurveTo(len*0.3, len*0.46, 0, len*0.3);
+    ctx2d.closePath();
+    ctx2d.fillStyle = col; ctx2d.fill();
+    ctx2d.stroke();
+    // 翅脉
+    ctx2d.strokeStyle = veinCol;
+    ctx2d.lineWidth = 0.7;
+    for(var v=1;v<=3;v++){
+      var f = v/4;
+      ctx2d.beginPath();
+      ctx2d.moveTo(0, -len*0.18 + len*0.34*f);
+      ctx2d.quadraticCurveTo(len*(0.35+f*0.3), -len*0.22*f, len*(0.8+f*0.12), -len*0.06*f);
+      ctx2d.stroke();
+    }
+    ctx2d.restore();
+  }
+}
+
+function drawCicada3D(S){
+  var bodyLen = 44*S, bodyW = 13*S, headR = 8.5*S, wingLen = 30*S;
+  // 翅膀（身后）
+  drawWings(state.spinPhase, S, wingLen, 11*S, 'rgba(215,238,255,0.7)', 'rgba(160,195,225,0.8)', 0.8);
+  // 身体（竹筒质感，头朝 +y）
+  var bg = ctx2d.createLinearGradient(-bodyW/2, 0, bodyW/2, 0);
+  bg.addColorStop(0, '#d6e7b9'); bg.addColorStop(0.42, '#8fae6a'); bg.addColorStop(1, '#3f5c2e');
+  ctx2d.fillStyle = bg;
+  ctx2d.beginPath();
+  ctx2d.moveTo(0, -bodyLen/2);
+  ctx2d.quadraticCurveTo(bodyW/2, -bodyLen/2 + bodyW*0.5, bodyW/2, 0);
+  ctx2d.quadraticCurveTo(bodyW/2, bodyLen/2 - bodyW*0.5, 0, bodyLen/2);
+  ctx2d.quadraticCurveTo(-bodyW/2, bodyLen/2 - bodyW*0.5, -bodyW/2, 0);
+  ctx2d.quadraticCurveTo(-bodyW/2, -bodyLen/2 + bodyW*0.5, 0, -bodyLen/2);
+  ctx2d.closePath();
+  ctx2d.fill();
+  // 竹节纹
+  ctx2d.strokeStyle = 'rgba(30,50,25,0.55)';
+  ctx2d.lineWidth = 1.2*S;
+  for(var s=1;s<=3;s++){
+    var yy = -bodyLen/2 + bodyLen*(s/4) + bodyLen*0.12;
+    ctx2d.beginPath();
+    ctx2d.moveTo(-bodyW/2*0.92, yy);
+    ctx2d.quadraticCurveTo(0, yy + 2.4*S, bodyW/2*0.92, yy);
+    ctx2d.stroke();
+  }
+  // 高光
+  ctx2d.fillStyle = 'rgba(255,255,255,0.28)';
+  ctx2d.beginPath();
+  ctx2d.ellipse(-bodyW*0.18, -bodyLen*0.1, bodyW*0.13, bodyLen*0.3, 0, 0, 6.283);
+  ctx2d.fill();
+  // 头（+y 端）
+  ctx2d.fillStyle = '#5c7c3e';
+  ctx2d.beginPath();
+  ctx2d.ellipse(0, bodyLen/2 - headR*0.4, headR*1.05, headR*0.95, 0, 0, 6.283);
+  ctx2d.fill();
+  // 眼
+  ctx2d.fillStyle = '#fff';
+  ctx2d.beginPath(); ctx2d.ellipse(-headR*0.42, bodyLen/2 - headR*0.1, headR*0.4, headR*0.48, -0.3, 0, 6.283); ctx2d.fill();
+  ctx2d.beginPath(); ctx2d.ellipse(headR*0.42, bodyLen/2 - headR*0.1, headR*0.4, headR*0.48, 0.3, 0, 6.283); ctx2d.fill();
+  ctx2d.fillStyle = '#1c2a14';
+  ctx2d.beginPath(); ctx2d.arc(-headR*0.32, bodyLen/2 - headR*0.08, headR*0.17, 0, 6.283); ctx2d.fill();
+  ctx2d.beginPath(); ctx2d.arc(headR*0.32, bodyLen/2 - headR*0.08, headR*0.17, 0, 6.283); ctx2d.fill();
+  // 触角
+  ctx2d.strokeStyle = '#3a4f28';
+  ctx2d.lineWidth = 1.4*S;
+  ctx2d.beginPath();
+  ctx2d.moveTo(-headR*0.3, bodyLen/2 + headR*0.3);
+  ctx2d.quadraticCurveTo(-headR*1.3, bodyLen/2 + headR*1.5, -headR*1.0, bodyLen/2 + headR*2.1);
+  ctx2d.stroke();
+  ctx2d.beginPath();
+  ctx2d.moveTo(headR*0.3, bodyLen/2 + headR*0.3);
+  ctx2d.quadraticCurveTo(headR*1.3, bodyLen/2 + headR*1.5, headR*1.0, bodyLen/2 + headR*2.1);
+  ctx2d.stroke();
+}
+
+function drawDoodle(S){
+  var bodyLen = 26*S, headR = 15*S, wingLen = 22*S;
+  drawWings(state.spinPhase, S, wingLen, 9*S, 'rgba(255,255,255,0.65)', 'rgba(120,160,120,0.7)', 0.85);
+  // 身体（+y 为头）
+  ctx2d.fillStyle = '#7fb05a';
+  ctx2d.beginPath();
+  ctx2d.ellipse(0, -bodyLen*0.35, bodyLen*0.34, bodyLen*0.5, 0, 0, 6.283);
+  ctx2d.fill();
+  ctx2d.strokeStyle = '#3e5a2c';
+  ctx2d.lineWidth = 2*S;
+  ctx2d.stroke();
+  for(var s=1;s<=2;s++){
+    ctx2d.beginPath();
+    ctx2d.moveTo(-bodyLen*0.3, -bodyLen*0.35 + bodyLen*0.28*s);
+    ctx2d.quadraticCurveTo(0, -bodyLen*0.35 + bodyLen*0.28*s + 3*S, bodyLen*0.3, -bodyLen*0.35 + bodyLen*0.28*s);
+    ctx2d.stroke();
+  }
+  // 大头
+  ctx2d.fillStyle = '#a8cf7a';
+  ctx2d.beginPath();
+  ctx2d.arc(0, bodyLen*0.52, headR, 0, 6.283);
+  ctx2d.fill();
+  ctx2d.stroke();
+  // 大眼睛
+  ctx2d.fillStyle = '#fff';
+  ctx2d.beginPath(); ctx2d.arc(-headR*0.42, bodyLen*0.58, headR*0.42, 0, 6.283); ctx2d.fill();
+  ctx2d.beginPath(); ctx2d.arc(headR*0.42, bodyLen*0.58, headR*0.42, 0, 6.283); ctx2d.fill();
+  ctx2d.fillStyle = '#233';
+  ctx2d.beginPath(); ctx2d.arc(-headR*0.34, bodyLen*0.6, headR*0.2, 0, 6.283); ctx2d.fill();
+  ctx2d.beginPath(); ctx2d.arc(headR*0.34, bodyLen*0.6, headR*0.2, 0, 6.283); ctx2d.fill();
+  ctx2d.fillStyle = '#fff';
+  ctx2d.beginPath(); ctx2d.arc(-headR*0.4, bodyLen*0.55, headR*0.07, 0, 6.283); ctx2d.fill();
+  ctx2d.beginPath(); ctx2d.arc(headR*0.4, bodyLen*0.55, headR*0.07, 0, 6.283); ctx2d.fill();
+  // 腮红
+  ctx2d.fillStyle = 'rgba(255,140,120,0.55)';
+  ctx2d.beginPath(); ctx2d.arc(-headR*0.75, bodyLen*0.75, headR*0.16, 0, 6.283); ctx2d.fill();
+  ctx2d.beginPath(); ctx2d.arc(headR*0.75, bodyLen*0.75, headR*0.16, 0, 6.283); ctx2d.fill();
+  // 微笑
+  ctx2d.strokeStyle = '#3e5a2c';
+  ctx2d.lineWidth = 1.6*S;
+  ctx2d.beginPath();
+  ctx2d.arc(0, bodyLen*0.7, headR*0.3, 0.25, Math.PI-0.25);
+  ctx2d.stroke();
+  // 触角
+  ctx2d.lineWidth = 1.6*S;
+  ctx2d.beginPath();
+  ctx2d.moveTo(-headR*0.35, bodyLen*0.52 + headR*0.7);
+  ctx2d.quadraticCurveTo(-headR*0.8, bodyLen*0.52 + headR*1.5, -headR*0.4, bodyLen*0.52 + headR*1.9);
+  ctx2d.stroke();
+  ctx2d.beginPath();
+  ctx2d.moveTo(headR*0.35, bodyLen*0.52 + headR*0.7);
+  ctx2d.quadraticCurveTo(headR*0.8, bodyLen*0.52 + headR*1.5, headR*0.4, bodyLen*0.52 + headR*1.9);
+  ctx2d.stroke();
+  ctx2d.fillStyle = '#a8cf7a';
+  ctx2d.beginPath(); ctx2d.arc(-headR*0.4, bodyLen*0.52 + headR*2.0, 2.2*S, 0, 6.283); ctx2d.fill();
+  ctx2d.beginPath(); ctx2d.arc(headR*0.4, bodyLen*0.52 + headR*2.0, 2.2*S, 0, 6.283); ctx2d.fill();
+}
+
+function render(t){
+  drawSky(t);
+  drawGlow();
+  drawRings();
+  drawRope();
+  drawGuide();
+  drawCicada();
+  drawFingerTrail();
+}
+
+/* ---------------------- 9. 主循环 ---------------------- */
+function onRevolution(){
+  Stats.gdSession++; Stats.gdTotal++;
+  if(state.sounding){ Stats.waSession++; Stats.waTotal++; }
+  if(state.mode === 'auto') Stats.autoTotal++;
+  if(state.mode === 'phone') Stats.phoneWa++;
+  persistStats();
+  checkAchievements();
+  bumpGd();
+  updateStatsDOM();
+  rings.push({ x: state.bob.x, y: state.bob.y, age: 0 });
+}
+
+var statTimer = 0;
+function statsTick(dtf){
+  statTimer += dtf;
+  if(statTimer < 0.5) return;
+  statTimer = 0;
+  var t = state.time;
+  GLOBAL.online = Math.max(300, Math.round(
+    1180 + 260*Math.sin(t*0.31) + 120*Math.sin(t*0.83 + 1.7) + 60*Math.sin(t*2.1 + 0.5)));
+  if(state.maxRps > Stats.maxRps) Stats.maxRps = state.maxRps;
+  checkAchievements();
+  updateStatsDOM();
+}
+
+function frame(now){
+  requestAnimationFrame(frame);
+  var dtf = Math.min((now - state.last)/1000, 0.05);
+  state.last = now;
+  if(dtf <= 0) return;
+  state.time += dtf;
+  // 手部平滑跟随（每帧一次），子步进中手部匀速运动
+  var ax0 = state.anchor.x, ay0 = state.anchor.y;
+  physicsAnchor(state, dtf);
+  var avx = (state.anchor.x - ax0)/dtf, avy = (state.anchor.y - ay0)/dtf;
+  state.acc += dtf;
+  var guard = 0;
+  while(state.acc >= CFG.DT && guard < 60){
+    physicsStep(state, CFG.DT, avx, avy, onRevolution);
+    state.acc -= CFG.DT;
+    guard++;
+  }
+  // 翅膀旋转（转速快则持续累积，慢则回落）
+  var sp = Math.abs(state.revPerSec)*Math.PI*2*dtf;
+  if(state.revPerSec > 0.3) state.spinPhase += sp;
+  else state.spinPhase *= Math.max(0, 1 - 4*dtf);
+  ageRings(dtf);
+  audioUpdate(state);
+  statsTick(dtf);
+  render(state.time);
+}
+
+/* ---------------------- 10. 启动 ---------------------- */
+function showHint(){
+  setTimeout(function(){ UI.hint.classList.add('show'); }, 900);
+  setTimeout(function(){ UI.hint.classList.remove('show'); }, 6500);
+}
+
+function init(){
+  grabUI();
+  bindUI();
+  buildStars();
+  onResize();
+  updateDock();
+  updateModeChip();
+  updateStatsDOM();
+  buildAchGrid();
+  state.last = performance.now();
+  showHint();
+  requestAnimationFrame(frame);
+}
+
+if(typeof document !== 'undefined' && typeof window !== 'undefined'){
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+}
+
+/* 供 Node 冒烟测试使用（浏览器中不存在 module，此分支不执行） */
+if(typeof module !== 'undefined' && module.exports){
+  module.exports = {
+    CFG: CFG, makeState: makeState, physicsResize: physicsResize,
+    physicsAnchor: physicsAnchor, physicsStep: physicsStep, buildSample: buildSample
+  };
+}
+
+})();
+</script>
+</body>
+</html>
