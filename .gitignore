@@ -1,0 +1,3 @@
+# 自签名证书与私钥（公开仓库不入库，用 make_cert.py 重新生成）
+cert.pem
+key.pem
